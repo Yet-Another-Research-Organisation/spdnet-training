@@ -1,0 +1,35 @@
+# SPDNet Model Configuration (based on config from batchnorm_aaai)
+name: spdnet
+
+# Architecture
+input_dim: ${dataset.input_dim}
+input_channels: 1
+hidden_layers_size: [186, 120]
+output_dim: null  # Will be set dynamically from num_classes
+
+# SPD parameters
+eps: 0.6
+use_logeig: true
+use_vech: false
+use_autograd: false
+
+# Batchnorm - Updated to match batchnorm_aaai config
+batchnorm: true
+batchnorm_method: geometric_arithmetic_harmonic
+batchnorm_adaptive_mean_type: null
+batchnorm_momentum: 0.001  # Changed from 0.01 to match config (batchnorm_minibatch_momentum)
+batchnorm_norm_strategy: classical
+batchnorm_minibatch_mode: constant
+batchnorm_minibatch_maxstep: 100
+batchnorm_type: mean_only  # Options: mean_only, mean_var_scalar
+batchnorm_parametrization: softplus
+batchnorm_t_gah_init: 0.5  # Initial value for adaptive t_gah parameter (0=harmonic, 1=arithmetic)
+
+# Bimap parametrization
+bimap_parametrized: true
+bimap_parametrization_name: orthogonal
+bimap_parametrization_options: null
+
+# Regularization
+dropout_rate: 0.0
+softmax: false

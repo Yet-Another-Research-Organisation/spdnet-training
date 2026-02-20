@@ -1,0 +1,50 @@
+# Trainer with Adam optimizer and plateau scheduler
+# Unified config combining trainer, optimizer and scheduler
+# Based on bn_softplus_s42 configuration that achieved 81.13% accuracy
+
+# ============ Trainer Settings ============
+max_epochs: 120
+accelerator: auto
+devices: 1
+precision: 64
+
+# Validation
+check_val_every_n_epoch: 1
+log_every_n_steps: 10
+
+# Callbacks configuration
+early_stopping:
+  monitor: val/accuracy
+  patience: 25
+  mode: max
+  min_delta: 0.0
+
+checkpoint:
+  monitor: val/accuracy
+  mode: max
+  save_top_k: 1
+  save_last: false
+  filename: 'best_model'
+
+# Reproducibility
+deterministic: true
+benchmark: false
+
+# ============ Optimizer Settings ============
+optimizer:
+  name: adam
+  lr: 0.00025
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  adaptive_lr_multiplier: 10.0  # LR multiplier for adaptive params (t_gah) - higher for faster convergence
+
+# ============ Scheduler Settings ============
+scheduler:
+  name: plateau
+  mode: min
+  factor: 0.5
+  patience: 4
+  min_lr: 1.0e-6
+  monitor: val/loss
+  verbose: true

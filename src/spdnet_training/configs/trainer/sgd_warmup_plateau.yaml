@@ -1,0 +1,51 @@
+# Trainer with SGD optimizer and warmup plateau scheduler
+# Unified config combining trainer, optimizer and scheduler
+
+# ============ Trainer Settings ============
+max_epochs: 200
+accelerator: auto
+devices: 1
+precision: 64
+
+# Validation
+check_val_every_n_epoch: 1
+log_every_n_steps: 10
+
+# Callbacks configuration
+early_stopping:
+  monitor: val/accuracy
+  patience: 30
+  mode: max
+  min_delta: 0.0
+
+checkpoint:
+  monitor: val/accuracy
+  mode: max
+  save_top_k: 1
+  save_last: false
+  filename: 'best_model'
+
+# Reproducibility
+deterministic: true
+benchmark: false
+
+# ============ Optimizer Settings ============
+optimizer:
+  name: sgd
+  lr: 1.0e-6  # Start from very low LR for warmup
+  momentum: 0.9
+  weight_decay: 0.0  # Important: must be 0.0 for SPDNet training
+  dampening: 0.0
+  nesterov: true
+
+# ============ Scheduler Settings ============
+scheduler:
+  name: warmup_plateau
+  mode: max  # max pour accuracy (on veut qu'elle augmente)
+  factor: 0.5
+  patience: 2  #
+  min_lr: 1.0e-6
+  monitor: val/accuracy
+  verbose: true
+  warmup_epochs: 3
+  target_lr: 0.575  # Target LR après warmup

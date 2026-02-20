@@ -1,0 +1,61 @@
+# Root Hydra Configuration
+defaults:
+  - model: spdnet
+  - dataset: null
+  - trainer: default
+  - launcher: null
+  - _self_
+  - experiment: null
+
+# Experiment metadata - defaults when no experiment config is used
+# Experiment configs override these values via @package _global_
+experiment:
+  name: BENCHMARKS
+  group: ${model.name}_${dataset.name}
+  tags: []
+  description: null
+
+# Global seed
+seed: 42
+
+# Logging configuration
+logging:
+  rich_progress: true
+  save_plots: true
+  analyze_covariance: false
+  num_covariance_samples_per_class: 3
+
+# Paths
+paths:
+  data: ${oc.env:DATA_ROOT}
+  results: results
+  output: ${paths.results}/${experiment.group}/${experiment.name}/${now:%Y%m%d_%H%M%S}
+
+# Hydra runtime configuration
+hydra:
+  run:
+    dir: ${paths.output}
+  sweep:
+    dir: ${paths.results}/${experiment.group}/${experiment.name}
+    subdir: ${now:%Y%m%d_%H%M%S}_trial_${hydra.job.num}
+  job:
+    chdir: false
+  # Disable Hydra's default train.log file (we use training.log instead)
+  job_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+    root:
+      level: INFO
+      handlers: [console]
+    disable_existing_loggers: false
+  sweeper:
+    _target_: hydra._internal.core_plugins.basic_sweeper.BasicSweeper
+    max_batch_size: null
+    params: null

@@ -1,0 +1,17 @@
+# @package _global_
+# Hydra Submitit Launcher Configuration for parallel GPU sweep
+# Usage: spdnet-train --multirun seed=42,123 launcher=gpu_sweep
+
+defaults:
+  - override /hydra/launcher: submitit_local
+
+# Available GPUs for distribution (jobs will cycle through these)
+# GPU assignment is handled automatically in train.py via job_num
+gpus: [0, 1]
+
+hydra:
+  launcher:
+    timeout_min: 1200
+    cpus_per_task: 4
+    tasks_per_node: 1 
+    mem_gb: 6  # Memory per job 
