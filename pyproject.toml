@@ -35,7 +35,7 @@ dependencies = [
     "rich>=10.0.0",
     "tqdm>=4.62.0",
     "optuna>=3.0.0",
-    "yetanotherspdnet @ git+https://github.com/Yet-Another-Research-Organisation/yetanotherspdnet.git",
+    "yetanotherspdnet @ git+https://github.com/Yet-Another-Research-Organisation/dev_yetanotherspdnet.git",
     "spdnet-datasets @ git+https://github.com/Yet-Another-Research-Organisation/spdnet-datasets.git",
 ]
 
