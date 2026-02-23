@@ -34,6 +34,7 @@ dependencies = [
     "seaborn>=0.11.0",
     "rich>=10.0.0",
     "tqdm>=4.62.0",
+    "optuna>=3.0.0",
     "yetanotherspdnet @ git+https://github.com/Yet-Another-Research-Organisation/yetanotherspdnet.git",
     "spdnet-datasets @ git+https://github.com/Yet-Another-Research-Organisation/spdnet-datasets.git",
 ]
@@ -44,6 +45,7 @@ dev = ["ruff>=0.1.0", "pre-commit>=3.4.0"]
 
 [project.scripts]
 spdnet-train = "spdnet_training.train:main"
+spdnet-optimize = "spdnet_training.optimize:main"
 
 [project.urls]
 Repository = "https://github.com/Yet-Another-Research-Organisation/spdnet-training"

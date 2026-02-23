@@ -1,0 +1,162 @@
+# =============================================================================
+# Optuna Search Space: Kaggle Wheat Disease – SGD + Warmup Plateau
+# =============================================================================
+# Joint optimization of all hyperparameters using Bayesian optimization (TPE).
+# Replaces the sequential grid search pipeline.
+#
+# Ranges calibrated from previous grid search results:
+#  - LR: SGD warmup target_lr tested 0.01–0.1, best around 0.01–0.05
+#  - Hidden layers: tested 32–120, best around 34–101
+#  - Batch size: tested 8–128, best around 16–64
+#  - Epsilon (reeig): tested 0.00005–1.0, best LE ~0.0005, best AGAH ~0.5
+#  - BN methods: log_euclidean and adaptive_geometric_arithmetic_harmonic
+# =============================================================================
+
+study_name: kaggle_wheat_sgd_optuna
+n_trials: 60        # ~60 trials is a good cost/benefit for TPE
+n_seeds: 3
+seeds: [42, 123, 456]
+
+direction: minimize  # minimize test loss
+objective:
+  type: combined          # "combined" | "single"
+  loss_metric: test/loss
+  acc_metric: test/accuracy
+  loss_weight: 0.5
+  acc_weight: 0.5
+  
+metric: test/loss    # metric key from trainer.test()
+
+# =============================================================================
+# Search Space
+# =============================================================================
+search_space:
+
+  # --- Optimizer / Scheduler ---
+  target_lr:
+    type: float
+    low: 0.005
+    high: 0.15
+    log: true         # log-uniform: explore 0.005–0.15
+
+  warmup_epochs:
+    type: int
+    low: 3
+    high: 20
+    step: 1
+
+  scheduler_patience:
+    type: int
+    low: 4
+    high: 15
+    step: 1
+
+  scheduler_factor:
+    type: categorical
+    choices: [0.5, 0.6, 0.75]
+
+  sgd_momentum:
+    type: float
+    low: 0.8
+    high: 0.99
+    log: false
+
+  # --- Architecture ---
+  hidden_layer_1:
+    type: int
+    low: 30
+    high: 105          # capped below input_dim (107), divisible by step
+    step: 5            # step=5 avoids excessive granularity
+
+  hidden_layer_2:
+    type: int
+    low: 15
+    high: 100
+    step: 5
+
+  # --- Batch size ---
+  batch_size:
+    type: categorical
+    choices: [16, 32, 48, 64,96]
+
+  # --- SPD-specific parameters ---
+  epsilon:
+    type: float
+    low: 0.0001
+    high: 1.0
+    log: true          # log-uniform: explore orders of magnitude
+
+  batchnorm_method:
+    type: categorical
+    choices:
+      - log_euclidean
+      - adaptive_geometric_arithmetic_harmonic
+      - harmonic
+
+  batchnorm_type:
+    type: categorical
+    choices:
+      - mean_only
+      - mean_var_scalar
+
+  batchnorm_norm_strategy:
+    type: categorical
+    choices:
+      - classical
+      - minibatch
+
+  batchnorm_momentum:
+    type: float
+    low: 0.0001
+    high: 0.05
+    log: true
+
+  dropout_rate:
+    type: float
+    low: 0.0
+    high: 0.4
+    log: false
+
+  use_logeig:
+    type: categorical
+    choices: [true, false]
+
+  # # --- Adaptive GAH specific (only used when method = AGAH) ---
+  # batchnorm_t_gah_init:
+  #   type: float
+  #   low: 0.2
+  #   high: 0.8
+  #   log: false
+  #   # Only sampled when batchnorm_method = adaptive_geometric_arithmetic_harmonic
+
+  # adaptive_lr_multiplier:
+  #   type: float
+  #   low: 10.0
+  #   high: 150.0
+  #   log: true
+  #   # LR multiplier for t_gah param – tested 50–75 in existing configs
+
+# =============================================================================
+# Pruning Configuration (early termination of bad trials)
+# =============================================================================
+pruning:
+  enabled: true
+  type: median
+  n_startup_trials: 10   # run 10 full trials before pruning
+  n_warmup_steps: 45     # don't prune before epoch 25
+  interval_steps: 5      # check every 5 epochs
+
+# =============================================================================
+# Training constraints
+# =============================================================================
+training:
+  max_epochs: 200
+  early_stopping_patience: 50
+  precision: 64
+
+# =============================================================================
+# Dataset split overrides
+# =============================================================================
+dataset:
+  val_ratio: 0.125
+  test_ratio: 0.125

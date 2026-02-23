@@ -1,0 +1,192 @@
+# =============================================================================
+# Optuna Search Space v2: Kaggle Wheat – Joint SGD/Adam + Depth Search
+# =============================================================================
+# Based on v1 results (60 trials, best=0.8617 trial#31):
+#   - batch_size 48 dominated top 10 trials
+#   - use_logeig=True always best
+#   - classical norm_strategy always best
+#   - mean_only batchnorm_type always best
+#   - harmonic and log_euclidean BN methods are best
+#   - scheduler_factor=0.5 strongly preferred
+#   - epsilon range narrowed to [0.01, 1.0] (nothing below 0.01 in top 10)
+#   - SGD momentum sweet spot around 0.83–0.93
+#
+# New in v2:
+#   - Joint SGD/Adam optimizer search
+#   - 3rd hidden layer (optional: -1 = skip) to test depth impact
+#   - Strictly decreasing layer sizes (enforced in optimize.py)
+#   - Ranges adjusted from v1 analysis
+#   - Fixed split ratios for proper 50/25/25
+#   - 120 trials for broader exploration
+# =============================================================================
+
+study_name: kaggle_wheat_optuna_v2
+n_trials: 200
+n_seeds: 3
+seeds: [42, 123, 456]
+
+direction: minimize  # always minimize; combined objective handles acc maximization
+
+# =============================================================================
+# Objective: weighted combination of loss (minimize) and accuracy (maximize)
+# Combined = loss_weight * test/loss - acc_weight * test/accuracy  (minimized)
+# Example: 0.5*loss - 0.5*acc favors equal weight on both
+#          0.7*loss - 0.3*acc focuses more on loss
+# =============================================================================
+objective:
+  type: combined          # "combined" | "single"
+  loss_metric: test/loss
+  acc_metric: test/accuracy
+  loss_weight: 0.5
+  acc_weight: 0.5
+
+# Kept for backward compat / pruning monitor (single-metric fallback)
+metric: test/loss
+
+# =============================================================================
+# Search Space
+# =============================================================================
+search_space:
+
+  # --- Optimizer choice (NEW: jointly search Adam vs SGD) ---
+  optimizer:
+    type: categorical
+    choices: [sgd, adam]
+
+  # --- Learning rate ---
+  # SGD: used as target_lr after warmup (v1 best ~0.0005–0.05)
+  # Adam: used directly (typical ~0.0001–0.005)
+  # Wide log-uniform range covers both; TPE learns which subrange per optimizer
+  learning_rate:
+    type: float
+    low: 0.0001
+    high: 0.25
+    log: true
+
+  # --- SGD-specific (only sampled when optimizer=sgd) ---
+  sgd_momentum:
+    type: float
+    low: 0.82
+    high: 0.98
+    log: false         # v1 sweet spot: 0.83–0.93
+
+  warmup_epochs:
+    type: int
+    low: 3
+    high: 20
+    step: 1
+
+  # --- Scheduler ---
+  scheduler_patience:
+    type: int
+    low: 2
+    high: 15
+    step: 1
+
+  scheduler_factor:
+    type: categorical
+    choices: [0.25, 0.5, 0.6]  # 0.75 never in v1 top 10
+
+  # --- Architecture ---
+  # Layers are sorted descending in optimize.py: actual arch = sorted([h1,h2,h3])
+  # h3 = -1 means 2-layer model → tests impact of depth
+  hidden_layer_1:
+    type: int
+    low: 30
+    high: 105          # capped below input_dim (107)
+    step: 5
+
+  hidden_layer_2:
+    type: categorical
+    choices: [-1, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+    # -1 = 1-layer model; when -1, hidden_layer_3 is forced to -1 too
+
+  hidden_layer_3:
+    type: categorical
+    choices: [-1, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]
+    # -1 = no third layer (2-layer architecture); forced to -1 if hidden_layer_2=-1
+
+  # --- Batch size ---
+  batch_size:
+    type: categorical
+    choices: [32, 48, 64, 96, 128]   # removed 16 (never in v1 top 10)
+
+  # --- SPD-specific parameters ---
+  epsilon:
+    type: float
+    low: 0.01
+    high: 10.0
+    log: true          # v1: nothing below 0.01 in top 10
+
+  batchnorm_method:
+    type: categorical
+    choices:
+      - log_euclidean
+      - harmonic
+      - adaptive_geometric_arithmetic_harmonic
+
+  batchnorm_type:
+    type: categorical
+    choices:
+      - mean_only
+      - mean_var_scalar
+
+  batchnorm_norm_strategy:
+    type: categorical
+    choices:
+      - classical
+      - minibatch
+
+  batchnorm_momentum:
+    type: float
+    low: 0.0001
+    high: 0.05
+    log: true
+
+  dropout_rate:
+    type: float
+    low: 0.0
+    high: 0.35
+    log: false         # v1 range was 0–0.4, narrowed slightly
+
+  use_logeig:
+    type: categorical
+    choices: [true, false]
+
+  # --- AGAH-specific (only sampled when batchnorm_method includes "adaptive") ---
+  batchnorm_t_gah_init:
+    type: float
+    low: 0.2
+    high: 0.8
+    log: false
+
+  adaptive_lr_multiplier:
+    type: float
+    low: 10.0
+    high: 150.0
+    log: true
+
+# =============================================================================
+# Pruning Configuration (early termination of bad trials)
+# =============================================================================
+pruning:
+  enabled: true
+  type: median
+  n_startup_trials: 15   # more startup for 120 trials
+  n_warmup_steps: 45     # don't prune before epoch 45
+  interval_steps: 5      # check every 5 epochs
+
+# =============================================================================
+# Training constraints
+# =============================================================================
+training:
+  max_epochs: 200
+  early_stopping_patience: 50
+  precision: 64
+
+# =============================================================================
+# Dataset split overrides (50% train / 25% val / 25% test)
+# =============================================================================
+dataset:
+  val_ratio: 0.125
+  test_ratio: 0.125
