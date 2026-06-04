@@ -11,7 +11,12 @@ output_dim: null  # Will be set dynamically from num_classes
 eps: 0.6
 use_logeig: true
 use_vech: false
-use_autograd: false
+use_autograd:
+  bimap: false
+  reeig: false
+  logeig: false
+  batchnorm: false
+  vec: false
 
 # Batchnorm - Updated to match batchnorm_aaai config
 batchnorm: true

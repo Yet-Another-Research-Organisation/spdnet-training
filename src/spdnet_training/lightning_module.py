@@ -33,7 +33,7 @@ class SPDNetModule(pl.LightningModule):
         from yetanotherspdnet.model import SPDnet
 
         # Extract known non-SPDnet parameters
-        non_model_params = {'optimizer', 'scheduler', 'input_channels', 'name', 'batchnorm_adaptive_mean_type', 'dropout_rate'}  # input_channels is for CNN, not SPDnet
+        non_model_params = {'optimizer', 'scheduler', 'input_channels', 'name', 'batchnorm_adaptive_mean_type', 'dropout_rate'}
 
         # Prepare model kwargs - filter out optimizer/scheduler/input_channels
         spdnet_kwargs = {k: v for k, v in model_kwargs.items() if k not in non_model_params}
@@ -63,17 +63,25 @@ class SPDNetModule(pl.LightningModule):
         for legacy_key in ('bimap_parametrization_name', 'bimap_parametrization'):
             spdnet_kwargs.pop(legacy_key, None)
 
-        # Remove batchnorm_minibatch_momentum if present (renamed to batchnorm_momentum in v.0.2.0)
-        if 'batchnorm_minibatch_momentum' in spdnet_kwargs and 'batchnorm_momentum' not in spdnet_kwargs:
-            spdnet_kwargs['batchnorm_momentum'] = spdnet_kwargs.pop('batchnorm_minibatch_momentum')
-        elif 'batchnorm_minibatch_momentum' in spdnet_kwargs:
-            spdnet_kwargs.pop('batchnorm_minibatch_momentum')
+        # Convert batchnorm_t_gah_init → batchnorm_mean_options (used by GAH mean)
+        if 'batchnorm_t_gah_init' in spdnet_kwargs:
+            t_init = spdnet_kwargs.pop('batchnorm_t_gah_init')
+            if spdnet_kwargs.get('batchnorm_mean_type') == 'geometric_arithmetic_harmonic':
+                opts = spdnet_kwargs.get('batchnorm_mean_options') or {}
+                opts.setdefault('t_init', t_init)
+                spdnet_kwargs['batchnorm_mean_options'] = opts
+
+        # Note: 'batchnorm_momentum' controls the running_mean EMA rate (affects eval mode).
+        # Both old and new model.py use this parameter identically — no remapping needed.
 
         # Set device and dtype if not already specified
         if 'device' not in spdnet_kwargs:
             spdnet_kwargs['device'] = self.device
         if 'dtype' not in spdnet_kwargs:
             spdnet_kwargs['dtype'] = torch.float64
+        # Convert string dtype (e.g. "float32" from Hydra YAML) to torch.dtype
+        if isinstance(spdnet_kwargs.get('dtype'), str):
+            spdnet_kwargs['dtype'] = getattr(torch, spdnet_kwargs['dtype'])
 
         # Create SPDnet model with all parameters
         try:
@@ -82,6 +90,18 @@ class SPDNetModule(pl.LightningModule):
             print(f"Error creating SPDnet with parameters: {spdnet_kwargs.keys()}")
             print(f"Error: {e}")
             raise
+
+        # Convert v0.1.6 plain-tensor running_mean to proper registered buffers.
+        # v0.1.6 uses self.running_mean = torch.eye(...) instead of register_buffer(),
+        # so .to(device) and state_dict do not handle it automatically. This fix makes
+        # eval-mode BN behavior identical to the OLD reference code (which uses register_buffer).
+        for module in self.model.modules():
+            if (hasattr(module, 'running_mean')
+                    and isinstance(module.running_mean, torch.Tensor)
+                    and 'running_mean' not in dict(module.named_buffers())):
+                val = module.running_mean.detach().clone()
+                del module.__dict__['running_mean']
+                module.register_buffer('running_mean', val)
 
         # Compile model for faster execution (PyTorch 2.0+)
         # Note: Disabled by default as SPDNet uses custom operations that may not benefit
@@ -126,10 +146,10 @@ class SPDNetModule(pl.LightningModule):
             raise ValueError(f"Unknown parametrization: {name}")
 
     def forward(self, x):
-        # Data should already be in double precision from dataloader
-        # Only convert if needed (avoid redundant conversions)
-        if x.dtype != torch.float64:
-            x = x.double()
+        # Cast input to model dtype (default float64; can be float32 for experiment)
+        model_dtype = next(self.model.parameters()).dtype
+        if x.dtype != model_dtype:
+            x = x.to(dtype=model_dtype)
         return self.model(x)
 
     def training_step(self, batch, batch_idx):

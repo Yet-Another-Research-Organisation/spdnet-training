@@ -8,6 +8,7 @@ import logging
 import time
 
 import torch
+import psutil
 
 # Third-party imports
 import hydra
@@ -275,6 +276,10 @@ def main(cfg: DictConfig):
     log.info("\nStarting energy monitoring...")
     metrics_writer.start_energy_monitoring()
 
+    # Reset GPU peak memory stats before training
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+
     # Train
     log.info("\n" + "="*80)
     log.info("STARTING TRAINING")
@@ -324,9 +329,22 @@ def main(cfg: DictConfig):
         "monitor_metric": cfg.trainer.checkpoint.monitor,
     }
 
+    # Add GPU peak memory stats
+    if torch.cuda.is_available():
+        experiment_status["gpu_peak_memory_mb"] = torch.cuda.max_memory_allocated() / 1024**2
+        experiment_status["gpu_reserved_memory_mb"] = torch.cuda.max_memory_reserved() / 1024**2
+        experiment_status["gpu_total_memory_mb"] = torch.cuda.get_device_properties(0).total_memory / 1024**2
+
     # Add energy stats if available
     if energy_stats:
         experiment_status["energy_consumption"] = energy_stats
+
+    # Add RAM usage
+    process = psutil.Process()
+    vm = psutil.virtual_memory()
+    experiment_status["ram_process_mb"] = process.memory_info().rss / 1024**2
+    experiment_status["ram_used_mb"] = vm.used / 1024**2
+    experiment_status["ram_total_mb"] = vm.total / 1024**2
 
     # Save experiment status to JSON
     status_file = output_path / 'spdnet_experiment_status.json'
