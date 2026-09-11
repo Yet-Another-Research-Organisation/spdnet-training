@@ -1,32 +1,32 @@
 """Main training CLI with Hydra configuration."""
-import sys
-import os
-import warnings
-from pathlib import Path
 import json
 import logging
+import os
 import time
-
-import torch
-import psutil
+import warnings
+from pathlib import Path
 
 # Third-party imports
 import hydra
-from omegaconf import DictConfig, OmegaConf
+import psutil
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+import torch
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from spdnet_datasets import DatasetManager
+
+from spdnet_training.callbacks import (
+    CovarianceAnalysisCallback,
+    PlottingCallback,
+    ResultsSaver,
+    RichMetricsLogger,
+)
+from spdnet_training.callbacks.csv_metrics_logger import CleanCSVMetricsLogger
 
 # Local imports
 from spdnet_training.lightning_module import SPDNetModule
-from spdnet_training.callbacks import (
-    PlottingCallback,
-    RichMetricsLogger,
-    ResultsSaver,
-    CovarianceAnalysisCallback,
-)
-from spdnet_training.callbacks.csv_metrics_logger import CleanCSVMetricsLogger
-from spdnet_datasets import DatasetManager
 from spdnet_training.utils.metrics import EnhancedMetricsWriter
+from spdnet_training.utils.precision import derive_precision_from_dtype
 
 # Compute config path relative to this file
 config_path = str(Path(__file__).parent / "configs")
@@ -155,6 +155,13 @@ def main(cfg: DictConfig):
         model_config['optimizer'] = OmegaConf.to_container(cfg.trainer.optimizer, resolve=True)
     if hasattr(cfg.trainer, 'scheduler') and cfg.trainer.scheduler is not None:
         model_config['scheduler'] = OmegaConf.to_container(cfg.trainer.scheduler, resolve=True)
+
+    # Auto-derive trainer.precision from model.dtype if explicitly set in config.
+    # This prevents Lightning from calling model.double() and overriding the requested dtype.
+    _precision = derive_precision_from_dtype(model_config.get('dtype'))
+    if _precision is not None and _precision != cfg.trainer.precision:
+        log.info(f"Auto-setting trainer.precision={_precision} to match model.dtype={model_config.get('dtype')}")
+        OmegaConf.update(cfg, "trainer.precision", _precision, merge=False)
 
     # Log model configuration
     log.info("Model configuration:")
