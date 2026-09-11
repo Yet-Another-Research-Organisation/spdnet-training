@@ -156,6 +156,16 @@ def main(cfg: DictConfig):
     if hasattr(cfg.trainer, 'scheduler') and cfg.trainer.scheduler is not None:
         model_config['scheduler'] = OmegaConf.to_container(cfg.trainer.scheduler, resolve=True)
 
+    # Auto-derive trainer.precision from model.dtype if explicitly set in config.
+    # This prevents Lightning from calling model.double() and overriding the requested dtype.
+    _model_dtype = model_config.get('dtype')
+    if _model_dtype is not None:
+        _dtype_to_precision = {'float32': 32, 'float': 32, 'float64': 64, 'double': 64}
+        _precision = _dtype_to_precision.get(str(_model_dtype))
+        if _precision is not None and _precision != cfg.trainer.precision:
+            log.info(f"Auto-setting trainer.precision={_precision} to match model.dtype={_model_dtype}")
+            OmegaConf.update(cfg, "trainer.precision", _precision, merge=False)
+
     # Log model configuration
     log.info("Model configuration:")
     for key, value in sorted(model_config.items()):
