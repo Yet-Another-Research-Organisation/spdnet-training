@@ -66,3 +66,4 @@ wandb/
 .coverage
 htmlcov/
 .pytest_cache/
+uv.lock
