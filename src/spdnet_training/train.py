@@ -1,32 +1,32 @@
 """Main training CLI with Hydra configuration."""
-import sys
-import os
-import warnings
-from pathlib import Path
 import json
 import logging
+import os
 import time
-
-import torch
-import psutil
+import warnings
+from pathlib import Path
 
 # Third-party imports
 import hydra
-from omegaconf import DictConfig, OmegaConf
+import psutil
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+import torch
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from spdnet_datasets import DatasetManager
+
+from spdnet_training.callbacks import (
+    CovarianceAnalysisCallback,
+    PlottingCallback,
+    ResultsSaver,
+    RichMetricsLogger,
+)
+from spdnet_training.callbacks.csv_metrics_logger import CleanCSVMetricsLogger
 
 # Local imports
 from spdnet_training.lightning_module import SPDNetModule
-from spdnet_training.callbacks import (
-    PlottingCallback,
-    RichMetricsLogger,
-    ResultsSaver,
-    CovarianceAnalysisCallback,
-)
-from spdnet_training.callbacks.csv_metrics_logger import CleanCSVMetricsLogger
-from spdnet_datasets import DatasetManager
 from spdnet_training.utils.metrics import EnhancedMetricsWriter
+from spdnet_training.utils.precision import derive_precision_from_dtype
 
 # Compute config path relative to this file
 config_path = str(Path(__file__).parent / "configs")
@@ -158,13 +158,10 @@ def main(cfg: DictConfig):
 
     # Auto-derive trainer.precision from model.dtype if explicitly set in config.
     # This prevents Lightning from calling model.double() and overriding the requested dtype.
-    _model_dtype = model_config.get('dtype')
-    if _model_dtype is not None:
-        _dtype_to_precision = {'float32': 32, 'float': 32, 'float64': 64, 'double': 64}
-        _precision = _dtype_to_precision.get(str(_model_dtype))
-        if _precision is not None and _precision != cfg.trainer.precision:
-            log.info(f"Auto-setting trainer.precision={_precision} to match model.dtype={_model_dtype}")
-            OmegaConf.update(cfg, "trainer.precision", _precision, merge=False)
+    _precision = derive_precision_from_dtype(model_config.get('dtype'))
+    if _precision is not None and _precision != cfg.trainer.precision:
+        log.info(f"Auto-setting trainer.precision={_precision} to match model.dtype={model_config.get('dtype')}")
+        OmegaConf.update(cfg, "trainer.precision", _precision, merge=False)
 
     # Log model configuration
     log.info("Model configuration:")
