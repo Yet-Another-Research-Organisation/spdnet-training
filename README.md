@@ -54,6 +54,7 @@ spdnet-training/
 ├── src/spdnet_training/
 │   ├── __init__.py
 │   ├── lightning_module.py   # SPDNetModule for PyTorch Lightning
+│   ├── backbones.py          # CNN backbone + covariance pooling + SPDnet (images)
 │   ├── train.py              # Main training CLI with Hydra
 │   ├── callbacks/            # Generic callbacks (plotting, logging, etc.)
 │   ├── utils/                # Utilities (schedulers, metrics, etc.)
@@ -69,11 +70,14 @@ spdnet-training/
 - **Monitoring**: Rich console output, CSV metrics logging, energy monitoring
 - **Analysis**: Covariance analysis, plotting callbacks, confusion matrices
 - **Extensibility**: Easy to extend with custom callbacks and configurations
+- **Image inputs**: truncated ImageNet backbones (EfficientNet-B0, MobileNetV2,
+  ResNet18) + covariance pooling (sample covariance or Student-t M-estimator) +
+  SPDnet, trained end to end — see [docs/backbones.md](docs/backbones.md)
 
 ## Dependencies
 
 - Python >= 3.11
-- PyTorch >= 2.0
+- PyTorch >= 2.0, torchvision >= 0.15
 - PyTorch Lightning >= 2.0
 - Hydra >= 1.3
 - yetanotherspdnet (from GitHub)

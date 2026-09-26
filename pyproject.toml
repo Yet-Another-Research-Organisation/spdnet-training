@@ -36,7 +36,10 @@ dependencies = [
     "tqdm>=4.62.0",
     "optuna>=3.0.0",
     "psutil>=5.9.0",
-    "yetanotherspdnet @ git+https://github.com/Yet-Another-Research-Organisation/dev_yetanotherspdnet.git",
+    "torchvision>=0.15.0",
+    # Branch of yetanotherspdnet PR #8 (M-estimators, stacked on #7): switch to
+    # @main once both are merged.
+    "yetanotherspdnet @ git+https://github.com/Yet-Another-Research-Organisation/yetanotherspdnet.git@feat/m-estimators",
     "spdnet-datasets @ git+https://github.com/Yet-Another-Research-Organisation/spdnet-datasets.git",
 ]
 
