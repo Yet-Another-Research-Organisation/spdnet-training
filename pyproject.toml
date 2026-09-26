@@ -40,7 +40,9 @@ dependencies = [
     # Branch of yetanotherspdnet PR #8 (M-estimators, stacked on #7): switch to
     # @main once both are merged.
     "yetanotherspdnet @ git+https://github.com/Yet-Another-Research-Organisation/yetanotherspdnet.git@feat/m-estimators",
-    "spdnet-datasets @ git+https://github.com/Yet-Another-Research-Organisation/spdnet-datasets.git",
+    # HyperLeaf image mode (partial spectrum) for the backbone models: switch to
+    # @main once merged.
+    "spdnet-datasets @ git+https://github.com/Yet-Another-Research-Organisation/spdnet-datasets.git@feat/hyperleaf-partial-spectral",
 ]
 
 [project.optional-dependencies]
