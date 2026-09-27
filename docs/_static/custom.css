@@ -1,0 +1,4 @@
+/* narrower parameter lists, tables that scroll */
+.dualpath-table table { font-size: 0.88em; }
+.dualpath-table table td:nth-child(3) { min-width: 18em; }
+dl.py.class > dt, dl.py.function > dt { font-size: 0.95em; }
