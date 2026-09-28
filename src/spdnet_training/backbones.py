@@ -133,6 +133,15 @@ class CovariancePooling(nn.Module):
     eps : float, optional
         Diagonal loading. Default is 1e-5
 
+    shrinkage : float | None, optional
+        Student-t estimator only: each fixed-point iterate becomes
+        ``shrinkage * F(Sigma) + (1 - shrinkage) * I`` (regularized
+        M-estimator), which keeps it invertible. Needed when some channels can
+        be identically zero, as after a ReLU (ResNet18 cut): the weighted
+        sample covariance of the first iteration is then singular and the next
+        Cholesky fails; ``eps`` is only added after the estimation.
+        Default is None (no shrinkage)
+
     dtype : torch.dtype, optional
         Output dtype. Default is torch.float64
     """
@@ -144,16 +153,20 @@ class CovariancePooling(nn.Module):
         nu: float = 5.0,
         n_iterations: int = 10,
         eps: float = 1e-5,
+        shrinkage: float | None = None,
         dtype: torch.dtype = torch.float64,
     ) -> None:
         super().__init__()
         if estimator not in ("scm", "student"):
             raise ValueError(f"estimator must be 'scm' or 'student', got {estimator!r}")
         self.estimator, self.nu, self.eps, self.dtype = estimator, nu, eps, dtype
+        self.shrinkage = shrinkage
         self.m_estimation = None
         if estimator == "student":
             weight = partial(student_function, n_features=n_features, nu=nu)
-            self.m_estimation = MEstimation(weight, n_iterations=n_iterations)
+            self.m_estimation = MEstimation(
+                weight, n_iterations=n_iterations, shrinkage=shrinkage
+            )
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         pixels = features.flatten(2).transpose(1, 2).to(self.dtype)  # (B, HW, C)
@@ -165,7 +178,10 @@ class CovariancePooling(nn.Module):
         return covariance + self.eps * eye
 
     def extra_repr(self) -> str:
-        return f"estimator={self.estimator}, nu={self.nu}, eps={self.eps}"
+        return (
+            f"estimator={self.estimator}, nu={self.nu}, eps={self.eps}, "
+            f"shrinkage={self.shrinkage}"
+        )
 
 
 class BackboneSPDnet(nn.Sequential):
