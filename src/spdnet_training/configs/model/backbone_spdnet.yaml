@@ -1,0 +1,18 @@
+# CNN backbone + covariance pooling + SPDnet, for image datasets
+# (e.g. dataset.mode=image on HyperLeaf). See docs/backbones.md.
+defaults:
+  - spdnet
+  - _self_
+
+name: backbone_spdnet
+input_dim: null  # set from the backbone width
+
+backbone:
+  backbone: efficientnet_b0  # efficientnet_b0 | mobilenet_v2 | resnet18
+  estimator: scm             # scm | student (M-estimator)
+  in_channels: 3             # number of image bands
+  pretrained: true           # ImageNet weights, fine-tuned end to end
+  pooling_options: null      # e.g. {nu: 5.0, n_iterations: 10, eps: 1.0e-5}
+
+hidden_layers_size: [32, 16]
+batchnorm: false
