@@ -46,7 +46,3 @@ Each entry is a `float` (optionally `log`), `int` (with `step`) or
 Unpromising trials are stopped early by a median pruner
 (`OptunaPruningCallback`).
 
-```{note}
-`batchnorm_t_gah_init` has no effect at present (see
-{doc}`configuration`); searching over it spends trials for nothing.
-```
