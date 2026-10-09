@@ -2,6 +2,8 @@
 
 Training infrastructure for SPDNet research: PyTorch Lightning module, callbacks, Hydra training loop, and utilities.
 
+Documentation: `pip install -e ".[docs]" && make -C docs html` (published on GitHub Pages at each release).
+
 ## Overview
 
 This package contains the shared training infrastructure extracted from the monolithic spdnet-benchmarks codebase. It provides:
@@ -72,7 +74,7 @@ spdnet-training/
 - **Extensibility**: Easy to extend with custom callbacks and configurations
 - **Image inputs**: truncated ImageNet backbones (EfficientNet-B0, MobileNetV2,
   ResNet18) + covariance pooling (sample covariance or Student-t M-estimator) +
-  SPDnet, trained end to end — see [docs/backbones.md](docs/backbones.md)
+  SPDnet, trained end to end — see [docs/guide/backbones.md](docs/guide/backbones.md)
 
 ## Dependencies
 
