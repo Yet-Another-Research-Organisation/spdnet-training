@@ -26,9 +26,11 @@ my_project/configs/              (yours, through --config-dir)
 
 ```{warning}
 `trainer=default` holds the Lightning settings but no `optimizer` /
-`scheduler` block, which the model needs: pick `adam_plateau` or
-`sgd_warmup_plateau`, or add an `optimizer` and a `scheduler` in your
-experiment config.
+`scheduler` block, which the model needs: `spdnet-train` stops at once with a
+`ValueError` if neither the trainer nor the model config provides them. The
+root config therefore defaults to `trainer=adam_plateau`; with
+`trainer=default`, add an `optimizer` and a `scheduler` in your experiment
+config.
 ```
 
 ## Root keys
@@ -61,11 +63,10 @@ from the command line. A few older names are translated:
 `output_dim` is set from the number of classes of the dataset;
 `input_dim: ${dataset.input_dim}` comes from the dataset config.
 
-```{note}
-`batchnorm_t_gah_init` currently has no effect: it is converted to
-`batchnorm_mean_options={"t_init": ...}`, which the batch normalization does
-not read, and the learned $t$ of the adaptive GAH always starts at $1/2$.
-```
+`batchnorm_t_gah_init` is converted to `batchnorm_mean_options={"t_init": ...}`
+when `batchnorm_method` is `adaptive_geometric_arithmetic_harmonic`: it is the
+initial value of the learned $t$ (0 harmonic, 1 arithmetic). It is ignored by
+the other batch normalizations.
 
 `trainer.precision` is derived from `model.dtype` when it is set, so that
 Lightning does not cast a float32 model to float64 (default: float64,

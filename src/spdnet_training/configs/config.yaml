@@ -2,7 +2,7 @@
 defaults:
   - model: spdnet
   - dataset: null
-  - trainer: default
+  - trainer: adam_plateau  # trainer=default has no optimizer/scheduler
   - launcher: null
   - _self_
   - experiment: null

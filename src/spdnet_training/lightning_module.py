@@ -63,10 +63,11 @@ class SPDNetModule(pl.LightningModule):
         for legacy_key in ('bimap_parametrization_name', 'bimap_parametrization'):
             spdnet_kwargs.pop(legacy_key, None)
 
-        # Convert batchnorm_t_gah_init → batchnorm_mean_options (used by GAH mean)
+        # Convert batchnorm_t_gah_init → batchnorm_mean_options={'t_init': ...},
+        # read by the adaptive GAH mean only (the plain GAH mean has no t)
         if 'batchnorm_t_gah_init' in spdnet_kwargs:
             t_init = spdnet_kwargs.pop('batchnorm_t_gah_init')
-            if spdnet_kwargs.get('batchnorm_mean_type') == 'geometric_arithmetic_harmonic':
+            if spdnet_kwargs.get('batchnorm_mean_type') == 'adaptive_geometric_arithmetic_harmonic':
                 opts = spdnet_kwargs.get('batchnorm_mean_options') or {}
                 opts.setdefault('t_init', t_init)
                 spdnet_kwargs['batchnorm_mean_options'] = opts

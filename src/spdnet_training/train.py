@@ -38,6 +38,26 @@ warnings.filterwarnings('ignore', message='.*compute.*method.*metric.*before.*up
 log = logging.getLogger(__name__)
 
 
+def check_optimization_config(cfg: DictConfig) -> None:
+    """Fail fast when no optimizer or scheduler is configured.
+
+    They come from the trainer config (``adam_plateau``, ``sgd_warmup_plateau``)
+    or, failing that, from the model config; ``trainer=default`` alone holds
+    neither, and the run used to crash only after building the dataloaders.
+    """
+    for key in ("optimizer", "scheduler"):
+        if (
+            OmegaConf.select(cfg, f"trainer.{key}") is None
+            and OmegaConf.select(cfg, f"model.{key}") is None
+        ):
+            raise ValueError(
+                f"No '{key}' configured: the selected trainer config has no "
+                f"'{key}' block. Use trainer=adam_plateau or "
+                f"trainer=sgd_warmup_plateau, or set trainer.{key} in an "
+                "experiment config."
+            )
+
+
 @hydra.main(version_base=None, config_path=config_path, config_name="config")
 def main(cfg: DictConfig):
     """
@@ -46,6 +66,7 @@ def main(cfg: DictConfig):
     Args:
         cfg: Hydra configuration object
     """
+    check_optimization_config(cfg)
 
     # Auto-assign GPU based on Hydra job number for multi-GPU parallelization
     # This works with joblib launcher when running multiple jobs in parallel
