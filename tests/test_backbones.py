@@ -105,3 +105,20 @@ def test_lightning_module_builds_backbone_from_hydra_config():
     module = SPDNetModule(**config)
     assert module.model.spdnet.input_dim == WIDTHS["resnet18"]
     assert module(torch.randn(2, 3, 48, 352)).shape == (2, 4)
+
+
+def test_student_pooling_with_dead_channel_needs_shrinkage():
+    """A channel that is zero on every pixel (dead ReLU) makes the weighted
+    sample covariance singular: the Student-t fixed point fails without
+    shrinkage and stays SPD, with finite gradients, with it."""
+    generator = torch.Generator().manual_seed(0)
+    features = torch.randn(2, 6, 12, 12, generator=generator)
+    features[:, 3] = 0.0  # dead channel
+    with pytest.raises(torch.linalg.LinAlgError):
+        CovariancePooling(6, "student")(features)
+    features.requires_grad_(True)
+    covariance = CovariancePooling(6, "student", shrinkage=0.999)(features)
+    eigvals = torch.linalg.eigvalsh(covariance)
+    assert covariance.dtype == torch.float64 and eigvals.min() > 0
+    covariance.sum().backward()
+    assert torch.isfinite(features.grad).all()
