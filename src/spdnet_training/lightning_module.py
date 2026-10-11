@@ -83,9 +83,18 @@ class SPDNetModule(pl.LightningModule):
         if isinstance(spdnet_kwargs.get('dtype'), str):
             spdnet_kwargs['dtype'] = getattr(torch, spdnet_kwargs['dtype'])
 
-        # Create SPDnet model with all parameters
+        # Create the model: plain SPDnet, or for image inputs a CNN backbone +
+        # covariance pooling + SPDnet whose input_dim is the backbone width
+        # (see spdnet_training.backbones)
+        backbone = spdnet_kwargs.pop('backbone', None)
         try:
-            self.model = SPDnet(**spdnet_kwargs)
+            if backbone is None:
+                self.model = SPDnet(**spdnet_kwargs)
+            else:
+                from spdnet_training.backbones import build_backbone_spdnet
+
+                spdnet_kwargs.pop('input_dim', None)
+                self.model = build_backbone_spdnet(**dict(backbone), **spdnet_kwargs)
         except TypeError as e:
             print(f"Error creating SPDnet with parameters: {spdnet_kwargs.keys()}")
             print(f"Error: {e}")
