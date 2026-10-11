@@ -67,3 +67,6 @@ wandb/
 htmlcov/
 .pytest_cache/
 uv.lock
+
+# Sphinx
+docs/_build/
