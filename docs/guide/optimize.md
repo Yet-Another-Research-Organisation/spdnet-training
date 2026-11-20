@@ -2,7 +2,13 @@
 
 `spdnet-optimize` searches the hyperparameters jointly with Optuna (TPE). Each
 trial trains the model on several seeds and reports the mean of the
-objective on the test set.
+objective. The objective reads the metrics named in the config: by default the
+validation metrics (`val/loss`, `val/accuracy`), so that the test set plays no
+part in the choice. The validation metrics are taken on the best checkpoint,
+as `spdnet-train` reports them. The best trial is written as an experiment
+preset, `best_experiment.yaml` in the output directory: copy it to
+`<config-dir>/experiment/` and run it with `spdnet-train experiment=<name>`.
+A best trial with a failed seed writes no preset.
 
 ```bash
 spdnet-optimize --config kaggle_wheat_sgd --experiment kaggle_wheat_sgd_batchnorm \
@@ -16,6 +22,9 @@ spdnet-optimize --config kaggle_wheat_sgd --experiment kaggle_wheat_sgd_batchnor
 | `--n-trials` | Overrides `n_trials` of the config |
 | `--storage`, `--study-name`, `--resume` | Optuna storage (SQLite URL) to resume a study |
 | `--output-dir`, `--gpu` | Output directory; pin to one GPU |
+| `--dataset` | Dataset config `configs/dataset/<name>.yaml` (default `kaggle_wheat`); the same dataset as the experiment |
+| `--config-dir` | Directory whose `optuna/`, `dataset/` and `experiment/` configs are read before those of the package |
+| `--fix NAME=VALUE ...` | Fix search-space entries to one value: `batchnorm_type=mean_only`, or `batchnorm=false` (no batch norm, batch-norm entries left out of the search). Other names are refused |
 
 ## Search space
 
@@ -26,8 +35,8 @@ seeds: [42, 123, 456]         # each trial trains once per seed
 direction: minimize
 objective:                    # "single": metric only; "combined": weighted
   type: combined
-  loss_metric: test/loss
-  acc_metric: test/accuracy
+  loss_metric: test/loss       # default: val/loss
+  acc_metric: test/accuracy    # default: val/accuracy
   loss_weight: 0.5
   acc_weight: 0.5
 search_space:
@@ -43,6 +52,8 @@ Each entry is a `float` (optionally `log`), `int` (with `step`) or
 `warmup_epochs` only with SGD; `batchnorm_t_gah_init` and
 `adaptive_lr_multiplier` only with the adaptive GAH batch normalization.
 `hidden_layer_1..3` are sorted in decreasing order, and `-1` removes a layer.
+Without them, the hidden layer sizes of the model config (after the experiment
+overrides) are kept.
 Unpromising trials are stopped early by a median pruner
 (`OptunaPruningCallback`).
 
