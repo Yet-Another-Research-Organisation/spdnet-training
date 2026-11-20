@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on Schirrmeister 2017: spdnet-train --config-dir configs experiment=schirrmeister2017
+defaults:
+  - override /dataset: schirrmeister2017
+experiment:
+  group: ${model.name}_schirrmeister2017
+model:
+  hidden_layers_size: [16]   # BiMap size of riemannian-fl-eeg

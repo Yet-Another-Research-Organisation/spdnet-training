@@ -1,0 +1,21 @@
+# BNCI 2014-001 (BCI Competition IV 2a): 9 subjects, 4 classes, 22 channels.
+# Band-pass 8-32 Hz, 128 Hz, one sample covariance per trial. Split: 75 / 10 / 15 %
+# of the trials, stratified by class (spdnet-train needs a validation set).
+name: moabb
+dataset: BNCI2014_001
+paradigm: MotorImagery
+paradigm_params:
+  n_classes: 4
+  events: [left_hand, right_hand, feet, tongue]
+  fmin: 8.0
+  fmax: 32.0
+  resample: 128
+  tmin: 0.0
+  tmax: null
+input_dim: 22
+estimator: scm
+split_strategy: stratified
+holdout: [0.1, 0.15]
+seed: ${seed}  # split seed: the run seed
+batch_size: 32
+num_workers: 0

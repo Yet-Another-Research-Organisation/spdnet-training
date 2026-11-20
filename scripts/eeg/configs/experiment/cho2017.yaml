@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on Cho 2017: spdnet-train --config-dir configs experiment=cho2017
+defaults:
+  - override /dataset: cho2017
+experiment:
+  group: ${model.name}_cho2017
+model:
+  hidden_layers_size: [16]   # BiMap size of riemannian-fl-eeg

@@ -1,0 +1,21 @@
+# Schirrmeister 2017 (High-Gamma): 14 subjects, 4 classes, 128 channels.
+# Band-pass 8-32 Hz, 128 Hz, one sample covariance per trial. Split: 75 / 10 / 15 %
+# of the trials, stratified by class (spdnet-train needs a validation set).
+name: moabb
+dataset: Schirrmeister2017
+paradigm: MotorImagery
+paradigm_params:
+  n_classes: 4
+  events: [left_hand, right_hand, feet, rest]
+  fmin: 8.0
+  fmax: 32.0
+  resample: 128
+  tmin: 0.0
+  tmax: null
+input_dim: 128
+estimator: scm
+split_strategy: stratified
+holdout: [0.1, 0.15]
+seed: ${seed}  # split seed: the run seed
+batch_size: 32
+num_workers: 0

@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on Weibo 2014: spdnet-train --config-dir configs experiment=weibo2014
+defaults:
+  - override /dataset: weibo2014
+experiment:
+  group: ${model.name}_weibo2014
+model:
+  hidden_layers_size: [20]   # BiMap size of riemannian-fl-eeg

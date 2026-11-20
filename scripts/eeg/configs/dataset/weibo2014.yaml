@@ -1,0 +1,23 @@
+# Weibo 2014: 10 subjects, 6 motor-imagery classes, 60 channels. The rest class is
+# left out: it was recorded apart, after the imagery trials of the session.
+# Band-pass 8-32 Hz, 128 Hz, one sample covariance per trial. Split: 75 / 10 / 15 %
+# of the trials, stratified by class (spdnet-train needs a validation set).
+name: moabb
+dataset: Weibo2014
+paradigm: MotorImagery
+paradigm_params:
+  n_classes: 6
+  events: [left_hand, right_hand, hands, feet, left_hand_right_foot,
+           right_hand_left_foot]
+  fmin: 8.0
+  fmax: 32.0
+  resample: 128
+  tmin: 0.0
+  tmax: null
+input_dim: 60
+estimator: scm
+split_strategy: stratified
+holdout: [0.1, 0.15]
+seed: ${seed}  # split seed: the run seed
+batch_size: 32
+num_workers: 0

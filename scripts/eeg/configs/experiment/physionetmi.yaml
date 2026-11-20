@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on PhysioNet MI: spdnet-train --config-dir configs experiment=physionetmi
+defaults:
+  - override /dataset: physionetmi
+experiment:
+  group: ${model.name}_physionetmi
+model:
+  hidden_layers_size: [16]   # BiMap size chosen as for Cho2017 (64 channels)
