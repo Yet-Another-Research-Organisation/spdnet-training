@@ -5,8 +5,8 @@
 #     experiment preset (configs/experiment/<dataset>.yaml);
 #   - the split ratios: the datasets use their "stratified" split;
 #   - dropout_rate: SPDNetModule does not use it;
-#   - the adaptive GAH mean: absent from the batch-norm refactoring of
-#     yetanotherspdnet (main and multivariate_batchnorm);
+#   - the adaptive GAH mean: absent from the multivariate_batchnorm branch of
+#     yetanotherspdnet, left out so that every batch norm has the same search;
 # with the validation metrics in the objective, and with the ranges that
 # kaggle_wheat_v2.yaml narrowed after a first Kaggle Wheat study reopened
 # (sgd_momentum, scheduler_factor, batch_size: those of kaggle_wheat_sgd.yaml,
@@ -19,6 +19,7 @@ study_name: eeg_optuna
 n_trials: 200
 n_seeds: 3
 seeds: [42, 123, 456]
+sampler_seed: 0  # seeded TPE sampler: a rerun samples the same trials
 
 direction: minimize  # always minimize; combined objective handles acc maximization
 

@@ -215,11 +215,13 @@ def base_configs(
     optimizer_type: str,
     dataset_name: str = "kaggle_wheat",
     config_dir: Path | None = None,
+    split: str | None = None,
 ) -> tuple[dict, dict, dict]:
     """Dataset, model and trainer configs of a trial, before the sampled params.
 
     Composed from the YAML files and the experiment overrides, without Hydra, to
-    stay independent of its singleton state.
+    stay independent of its singleton state. ``split`` replaces the
+    ``split_strategy`` of the dataset (``--split``).
     """
     # 1. Load base configs
     with open(config_file("dataset", dataset_name, config_dir)) as f:
@@ -248,6 +250,9 @@ def base_configs(
                 trainer_cfg[k].update(v)
             else:
                 trainer_cfg[k] = v
+
+    if split is not None:
+        dataset_cfg["split_strategy"] = split
 
     # 3. Resolve Hydra interpolations that we skipped --------------------------
     # input_dim is ${dataset.input_dim} in the raw YAML -> resolve manually
@@ -326,32 +331,33 @@ def train_single_seed(
     output_dir: Path | None = None,
     dataset_name: str = "kaggle_wheat",
     config_dir: Path | None = None,
+    split: str | None = None,
 ) -> dict[str, float]:
     """Train **one** model with the given hyper-parameters and seed.
 
-    Returns the validation and test metrics of the trained model
-    (``val/loss``, ``val/accuracy``, ``test/loss``, ``test/accuracy``, ...).
+    Returns the validation metrics of the best checkpoint and the test metrics of
+    the last weights (``val/loss``, ``val/accuracy``, ``test/loss``, ...).
     """
     import pytorch_lightning as pl
     from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
-    from spdnet_training.callbacks.optuna_pruning import OptunaPruningCallback
-    from spdnet_datasets import DatasetManager
     from spdnet_training import SPDNetModule
+    from spdnet_training.callbacks.optuna_pruning import OptunaPruningCallback
+    from spdnet_training.cross_subject import create_dataloaders
 
     # ---- reproducibility ----
     pl.seed_everything(seed, workers=True)
 
     optimizer_type = str(params.get("optimizer", "sgd")).lower()
     dataset_cfg, model_cfg, trainer_cfg = base_configs(
-        experiment_name, optimizer_type, dataset_name, config_dir)
+        experiment_name, optimizer_type, dataset_name, config_dir, split)
     es_patience = apply_params(params, seed, optuna_cfg, dataset_cfg, model_cfg, trainer_cfg)
     training_cfg = optuna_cfg.get("training", {})
     max_epochs = trainer_cfg["max_epochs"]
 
     # ---- create dataloaders ----
     dataset_config_plain = {k: v for k, v in dataset_cfg.items()}
-    train_loader, val_loader, test_loader, num_classes = DatasetManager.create_dataloaders(
+    train_loader, val_loader, test_loader, num_classes, domain_bn = create_dataloaders(
         dataset_config_plain,
     )
 
@@ -387,6 +393,9 @@ def train_single_seed(
 
     if enable_pruning and trial is not None:
         callbacks.append(OptunaPruningCallback(trial, monitor="val/loss"))
+    # cross-subject split: batch norm adapted to each evaluated session
+    domain_callbacks = [] if domain_bn is None else [domain_bn]
+    callbacks += domain_callbacks
 
     # ---- trainer ----
     trainer = pl.Trainer(
@@ -419,7 +428,8 @@ def train_single_seed(
     evaluator = pl.Trainer(accelerator="gpu" if _gpu_available() else "cpu", devices=1,
                            precision=int(training_cfg.get("precision", 64)),
                            logger=False, enable_progress_bar=False,
-                           enable_model_summary=False, enable_checkpointing=False)
+                           enable_model_summary=False, enable_checkpointing=False,
+                           callbacks=domain_callbacks)
     val_results = evaluator.validate(model, dataloaders=val_loader, ckpt_path=ckpt or None,
                                      verbose=False)
     metrics = {}
@@ -439,6 +449,7 @@ def create_objective(
     output_dir: Path | None = None,
     dataset_name: str = "kaggle_wheat",
     config_dir: Path | None = None,
+    split: str | None = None,
 ):
     """Return an Optuna objective function (closure)."""
 
@@ -485,6 +496,7 @@ def create_objective(
                     output_dir=trial_dir,
                     dataset_name=dataset_name,
                     config_dir=config_dir,
+                    split=split,
                 )
                 if use_combined:
                     loss_val = float(metrics.get(loss_metric, 999.0))
@@ -574,14 +586,16 @@ def run_optimization(
     dataset_name: str = "kaggle_wheat",
     config_dir: Path | None = None,
     fixed: dict[str, Any] | None = None,
+    split: str | None = None,
 ) -> optuna.Study:
     """Create / load an Optuna study and optimise.
 
-    ``fixed`` replaces search-space entries by a single value (``--fix``).
+    ``fixed`` replaces search-space entries by a single value (``--fix``),
+    ``split`` the split of the dataset (``--split``).
     """
 
     optuna_cfg = fix_params(load_optuna_config(optuna_config_name, config_dir), fixed)
-    base_configs(experiment_name, "sgd", dataset_name, config_dir)  # fail fast on a bad config
+    base_configs(experiment_name, "sgd", dataset_name, config_dir, split)  # fail fast
 
     n_trials = n_trials or int(optuna_cfg.get("n_trials", 60))
     study_name = study_name or str(optuna_cfg.get("study_name", "spdnet_optuna"))
@@ -603,6 +617,10 @@ def run_optimization(
     else:
         pruner = optuna.pruners.NopPruner()
 
+    # Seeded sampler when the config sets sampler_seed: the same trials on a rerun
+    seed = optuna_cfg.get("sampler_seed")
+    sampler = None if seed is None else optuna.samplers.TPESampler(seed=int(seed))
+
     # Create / load study
     if storage:
         study = optuna.create_study(
@@ -610,6 +628,7 @@ def run_optimization(
             storage=storage,
             direction=direction,
             pruner=pruner,
+            sampler=sampler,
             load_if_exists=resume,
         )
     else:
@@ -617,10 +636,11 @@ def run_optimization(
             study_name=study_name,
             direction=direction,
             pruner=pruner,
+            sampler=sampler,
         )
 
     objective = create_objective(optuna_cfg, experiment_name, output_dir,
-                                 dataset_name, config_dir)
+                                 dataset_name, config_dir, split)
 
     log.info("=" * 70)
     log.info(f"Optuna study: {study_name}")
@@ -779,6 +799,7 @@ def write_best_experiment(
     experiment_name: str,
     dataset_name: str = "kaggle_wheat",
     config_dir: Path | None = None,
+    split: str | None = None,
 ) -> bool:
     """Write the best trial as an experiment preset of ``spdnet-train``.
 
@@ -786,8 +807,9 @@ def write_best_experiment(
     ``dataset_name``, and sets what the search changed in the configs of a trial
     (``apply_params``): model and trainer settings, the trainer config of the
     optimizer, the batch size. The dataset seed is left out: spdnet-train keeps
-    the one of the dataset config. Its runs are named after the study. To use it,
-    copy it to ``<config-dir>/experiment/``.
+    the one of the dataset config. ``split`` (``--split``) is written as the
+    ``split_strategy`` of the dataset. Its runs are named after the study. To use
+    it, copy it to ``<config-dir>/experiment/``.
 
     Returns False, and writes nothing, when a seed of the best trial failed.
     """
@@ -805,6 +827,8 @@ def write_best_experiment(
     apply_params(params, 0, optuna_cfg, *tuned)
     dataset, model, trainer = (_changes(n, o) for n, o in zip(tuned, base, strict=True))
     dataset.pop("seed", None)
+    if split is not None:
+        dataset["split_strategy"] = split
     trainer_name = "adam_plateau" if optimizer_type == "adam" else "sgd_warmup_plateau"
     preset = {
         "defaults": [experiment_name, {"override /dataset": dataset_name},
@@ -847,6 +871,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--fix", nargs="+", action="extend", default=[], metavar="NAME=VALUE",
                    help="Fix search-space entries to one value, e.g. "
                         "batchnorm_type=mean_only, or batchnorm=false (no batch norm)")
+    p.add_argument("--split", default=None,
+                   help="Split of the dataset, replacing its split_strategy, e.g. "
+                        "subject_fold_3 (one study per fold)")
     p.add_argument("--config-dir", type=Path, default=None,
                    help="Directory with optuna/, dataset/ and experiment/ configs, "
                         "read before those of the package")
@@ -883,6 +910,7 @@ def main():
         dataset_name=args.dataset,
         config_dir=args.config_dir,
         fixed=parse_fixed(args.fix),
+        split=args.split,
     )
 
     print_study_summary(study, output_dir=output_dir)
@@ -890,7 +918,7 @@ def main():
         optuna_cfg = fix_params(load_optuna_config(args.config, args.config_dir),
                                 parse_fixed(args.fix))
         write_best_experiment(output_dir / "best_experiment.yaml", study, optuna_cfg,
-                              args.experiment, args.dataset, args.config_dir)
+                              args.experiment, args.dataset, args.config_dir, args.split)
 
 
 if __name__ == "__main__":

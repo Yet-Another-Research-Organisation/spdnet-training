@@ -25,6 +25,10 @@ spdnet-optimize --config kaggle_wheat_sgd --experiment kaggle_wheat_sgd_batchnor
 | `--dataset` | Dataset config `configs/dataset/<name>.yaml` (default `kaggle_wheat`); the same dataset as the experiment |
 | `--config-dir` | Directory whose `optuna/`, `dataset/` and `experiment/` configs are read before those of the package |
 | `--fix NAME=VALUE ...` | Fix search-space entries to one value: `batchnorm_type=mean_only`, or `batchnorm=false` (no batch norm, batch-norm entries left out of the search). Other names are refused |
+| `--split NAME` | Split of the dataset, replacing its `split_strategy` in every trial and in the preset, e.g. `subject_fold_3`: one study per fold for a nested cross-validation |
+
+A key `sampler_seed` in the Optuna config seeds the TPE sampler, so that a rerun samples
+the same trials. Without it the sampler is unseeded, as before.
 
 ## Search space
 

@@ -80,3 +80,30 @@ def test_no_preset_when_the_best_trial_failed(tmp_path):
     assert not write_best_experiment(path, study, load_optuna_config("kaggle_wheat_v2"),
                                      "missing")
     assert not path.exists()
+
+
+def test_split_reaches_the_trial_configs_and_the_preset(tmp_path):
+    import yaml
+
+    from spdnet_training.optimize import base_configs, write_best_experiment
+
+    (tmp_path / "dataset").mkdir()
+    (tmp_path / "experiment").mkdir()
+    (tmp_path / "dataset" / "d.yaml").write_text(
+        "name: d\ninput_dim: 4\nsplit_strategy: subject_fold_0\nbatch_size: 8\n")
+    (tmp_path / "experiment" / "e.yaml").write_text("# @package _global_\n")
+    dataset, *_ = base_configs("e", "sgd", "d", tmp_path, split="subject_fold_2")
+    assert dataset["split_strategy"] == "subject_fold_2"
+
+    cfg = load_optuna_config("kaggle_wheat_v2")
+    params = _first_choices(cfg.search_space)
+    study = optuna.create_study(study_name="s")
+    study.add_trial(optuna.trial.create_trial(
+        value=0.1, params={}, distributions={},
+        user_attrs={"seed_results": [0.1],
+                    "params": sample_hyperparameters(optuna.trial.FixedTrial(params),
+                                                     cfg.search_space)}))
+    path = tmp_path / "best.yaml"
+    assert write_best_experiment(path, study, cfg, "e", "d", tmp_path, split="subject_fold_2")
+    preset = yaml.safe_load(path.read_text())
+    assert preset["dataset"]["split_strategy"] == "subject_fold_2"
