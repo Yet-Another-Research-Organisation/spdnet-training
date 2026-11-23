@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on BNCI 2014-001: spdnet-train --config-dir configs experiment=bnci2014_001
+defaults:
+  - override /dataset: bnci2014_001
+experiment:
+  group: ${model.name}_bnci2014_001
+model:
+  hidden_layers_size: [16]   # BiMap size of riemannian-fl-eeg

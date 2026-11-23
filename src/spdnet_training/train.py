@@ -13,7 +13,6 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from spdnet_datasets import DatasetManager
 
 from spdnet_training.callbacks import (
     CovarianceAnalysisCallback,
@@ -22,6 +21,7 @@ from spdnet_training.callbacks import (
     RichMetricsLogger,
 )
 from spdnet_training.callbacks.csv_metrics_logger import CleanCSVMetricsLogger
+from spdnet_training.cross_subject import create_dataloaders
 
 # Local imports
 from spdnet_training.lightning_module import SPDNetModule
@@ -149,7 +149,8 @@ def main(cfg: DictConfig):
     # Create dataset and dataloaders using DatasetManager
     log.info("Loading dataset...")
     dataset_config = OmegaConf.to_container(cfg.dataset, resolve=True)
-    train_loader, val_loader, test_loader, num_classes = DatasetManager.create_dataloaders(dataset_config)
+    train_loader, val_loader, test_loader, num_classes, domain_bn = create_dataloaders(
+        dataset_config)
 
     log.info(f"✓ Dataset loaded: {cfg.dataset.name}")
     log.info(f"  - Number of classes: {num_classes}")
@@ -278,6 +279,11 @@ def main(cfg: DictConfig):
     callbacks.append(csv_metrics_callback)
     log.info("  ✓ Clean CSV metrics logger")
 
+    # Cross-subject split: batch norm adapted to each evaluated session
+    if domain_bn is not None:
+        callbacks.append(domain_bn)
+        log.info("  ✓ Batch norm of each session of each subject (cross-subject split)")
+
     # Initialize trainer
     log.info("\nConfiguring trainer...")
     trainer = pl.Trainer(
@@ -335,6 +341,18 @@ def main(cfg: DictConfig):
     test_start = time.time()
     test_results = trainer.test(model, dataloaders=test_loader, ckpt_path='best')
     test_duration = time.time() - test_start
+
+    # Cross-subject split: test for each calibration size K of the test subjects
+    if domain_bn is not None:
+        target_metrics = domain_bn.evaluate(
+            model, test_loader, checkpoint_callback.best_model_path,
+            accelerator=cfg.trainer.accelerator, devices=cfg.trainer.devices,
+            precision=cfg.trainer.precision)
+        with open(Path(cfg.paths.output) / 'target_metrics.json', 'w') as f:
+            json.dump(target_metrics, f, indent=2)
+        for size, res in target_metrics.items():
+            log.info(f"  - K={size}: accuracy {res['accuracy']:.4f}, "
+                     f"subject mean {res['subject_mean']:.4f}")
 
     log.info("\n" + "="*40)
     log.info("TEST RESULTS")

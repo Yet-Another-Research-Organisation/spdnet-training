@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on Weibo 2014, cross-subject protocol (one run per fold: run_eeg.sh)
+defaults:
+  - override /dataset: weibo2014_subjects
+experiment:
+  group: ${model.name}_weibo2014_subjects
+model:
+  hidden_layers_size: [20]   # BiMap size of riemannian-fl-eeg

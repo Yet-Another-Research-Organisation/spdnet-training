@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on BNCI 2014-001, cross-subject protocol (one run per fold: run_eeg.sh)
+defaults:
+  - override /dataset: bnci2014_001_subjects
+experiment:
+  group: ${model.name}_bnci2014_001_subjects
+model:
+  hidden_layers_size: [16]   # BiMap size of riemannian-fl-eeg

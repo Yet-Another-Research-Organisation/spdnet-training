@@ -1,0 +1,153 @@
+# =============================================================================
+# Optuna search space for the EEG datasets: kaggle_wheat_v2.yaml of
+# spdnet-training, without
+#   - the hidden layers: the BiMap size of each dataset comes from its
+#     experiment preset (configs/experiment/<dataset>.yaml);
+#   - the split ratios: the datasets use their "stratified" split;
+#   - dropout_rate: SPDNetModule does not use it;
+#   - the adaptive GAH mean: absent from the multivariate_batchnorm branch of
+#     yetanotherspdnet, left out so that every batch norm has the same search;
+# with the validation metrics in the objective, and with the ranges that
+# kaggle_wheat_v2.yaml narrowed after a first Kaggle Wheat study reopened
+# (sgd_momentum, scheduler_factor, batch_size: those of kaggle_wheat_sgd.yaml,
+# plus the values that kaggle_wheat_v2.yaml added).
+# run_optuna_eeg.sh fixes batchnorm_type (one study per batch norm) and the
+# number of trials (--n-trials, which overrides n_trials).
+# =============================================================================
+
+study_name: eeg_optuna
+n_trials: 200
+n_seeds: 3
+seeds: [42, 123, 456]
+sampler_seed: 0  # seeded TPE sampler: a rerun samples the same trials
+
+direction: minimize  # always minimize; combined objective handles acc maximization
+
+# =============================================================================
+# Objective: weighted combination of the VALIDATION loss and accuracy
+# Combined = loss_weight * val/loss - acc_weight * val/accuracy  (minimized)
+# Validation, not test (kaggle_wheat_v2.yaml reads test/...): the test set
+# must play no part in the choice of hyperparameters.
+# =============================================================================
+objective:
+  type: combined
+  loss_metric: val/loss
+  acc_metric: val/accuracy
+  loss_weight: 0.5
+  acc_weight: 0.5
+
+metric: val/loss  # objective of type "single"
+
+# =============================================================================
+# Search Space
+# =============================================================================
+search_space:
+
+  # --- Optimizer choice (NEW: jointly search Adam vs SGD) ---
+  optimizer:
+    type: categorical
+    choices: [sgd, adam]
+
+  # --- Learning rate ---
+  # SGD: target_lr after warmup. Adam: used directly.
+  # Wide log-uniform range covers both; TPE learns which subrange per optimizer
+  learning_rate:
+    type: float
+    low: 0.0001
+    high: 0.25
+    log: true
+
+  # --- SGD-specific (only sampled when optimizer=sgd) ---
+  sgd_momentum:
+    type: float
+    low: 0.8
+    high: 0.99
+    log: false
+
+  warmup_epochs:
+    type: int
+    low: 3
+    high: 20
+    step: 1
+
+  # --- Scheduler ---
+  scheduler_patience:
+    type: int
+    low: 2
+    high: 15
+    step: 1
+
+  scheduler_factor:
+    type: categorical
+    choices: [0.25, 0.5, 0.6, 0.75]
+
+  # --- Batch size ---
+  batch_size:
+    type: categorical
+    choices: [16, 32, 48, 64, 96, 128]
+
+  # --- SPD-specific parameters ---
+  epsilon:
+    type: float
+    low: 0.01
+    high: 10.0
+    log: true          # range of kaggle_wheat_v2.yaml
+
+  batchnorm_method:
+    type: categorical
+    choices:  # adaptive_geometric_arithmetic_harmonic: absent from multivariate_batchnorm
+      - log_euclidean
+      - harmonic
+
+  batchnorm_type:
+    type: categorical
+    choices:
+      - mean_only
+      - mean_var_scalar
+
+  batchnorm_norm_strategy:
+    type: categorical
+    choices:
+      - classical
+      - minibatch
+
+  batchnorm_momentum:
+    type: float
+    low: 0.0001
+    high: 0.05
+    log: true
+
+  use_logeig:
+    type: categorical
+    choices: [true, false]
+
+  # --- AGAH-specific (only sampled when batchnorm_method includes "adaptive") ---
+  batchnorm_t_gah_init:
+    type: float
+    low: 0.2
+    high: 0.8
+    log: false
+
+  adaptive_lr_multiplier:
+    type: float
+    low: 10.0
+    high: 150.0
+    log: true
+
+# =============================================================================
+# Pruning Configuration (early termination of bad trials)
+# =============================================================================
+pruning:
+  enabled: true
+  type: median
+  n_startup_trials: 15   # more startup for 120 trials
+  n_warmup_steps: 45     # don't prune before epoch 45
+  interval_steps: 5      # check every 5 epochs
+
+# =============================================================================
+# Training constraints
+# =============================================================================
+training:
+  max_epochs: 200
+  early_stopping_patience: 50
+  precision: 64

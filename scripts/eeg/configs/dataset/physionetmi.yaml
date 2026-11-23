@@ -1,0 +1,23 @@
+# PhysioNet MI: 106 subjects, 4 classes, 64 channels.
+# Subjects 88, 92 and 100 follow another protocol and are left out.
+# Band-pass 8-32 Hz, 128 Hz, one sample covariance per trial. Split: 75 / 10 / 15 %
+# of the trials, stratified by class (spdnet-train needs a validation set).
+name: moabb
+dataset: PhysionetMI
+paradigm: MotorImagery
+exclude_subjects: [88, 92, 100]
+paradigm_params:
+  n_classes: 4
+  events: [left_hand, right_hand, hands, feet]
+  fmin: 8.0
+  fmax: 32.0
+  resample: 128
+  tmin: 0.0
+  tmax: 3.0
+input_dim: 64
+estimator: scm
+split_strategy: stratified
+holdout: [0.1, 0.15]
+seed: ${seed}  # split seed: the run seed
+batch_size: 32
+num_workers: 0

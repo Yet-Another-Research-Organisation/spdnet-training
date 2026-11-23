@@ -1,0 +1,8 @@
+# @package _global_
+# SPDNet on Schirrmeister 2017, cross-subject protocol (one run per fold: run_eeg.sh)
+defaults:
+  - override /dataset: schirrmeister2017_subjects
+experiment:
+  group: ${model.name}_schirrmeister2017_subjects
+model:
+  hidden_layers_size: [16]   # BiMap size of riemannian-fl-eeg

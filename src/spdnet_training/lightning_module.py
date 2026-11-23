@@ -1,4 +1,7 @@
 """SPDNet Lightning Module."""
+import inspect
+import warnings
+
 import torch
 import pytorch_lightning as pl
 from torchmetrics import Accuracy, Precision, Recall, F1Score, ConfusionMatrix
@@ -62,6 +65,15 @@ class SPDNetModule(pl.LightningModule):
         # Old keys: bimap_parametrization_name, bimap_parametrization → no longer accepted by SPDnet
         for legacy_key in ('bimap_parametrization_name', 'bimap_parametrization'):
             spdnet_kwargs.pop(legacy_key, None)
+
+        # Arguments removed from SPDnet by the batch-norm refactoring of
+        # yetanotherspdnet: dropped only when the installed SPDnet does not take
+        # them, so that older and newer versions both work.
+        accepted = inspect.signature(SPDnet.__init__).parameters
+        for removed_key in ('use_autograd', 'batchnorm_bw_options'):
+            if removed_key not in accepted and spdnet_kwargs.pop(removed_key, None):
+                warnings.warn(f"{removed_key} is ignored: this version of SPDnet "
+                              "does not take it", UserWarning, stacklevel=2)
 
         # Convert batchnorm_t_gah_init → batchnorm_mean_options={'t_init': ...},
         # read by the adaptive GAH mean only (the plain GAH mean has no t)
@@ -363,6 +375,13 @@ class SPDNetModule(pl.LightningModule):
             )
         else:
             raise ValueError(f"Unknown optimizer: {opt_name}. Supported: adam, adamw, sgd, rmsprop")
+
+        # Post-step hooks of the layers with a dynamic parametrization (a no-op in
+        # static mode, the default)
+        from yetanotherspdnet.model import SPDnet
+        for module in self.model.modules():
+            if isinstance(module, SPDnet) and hasattr(module, 'register_optimizer_hook'):
+                module.register_optimizer_hook(optimizer)
 
         if self.hparams.scheduler is None:
             return optimizer
